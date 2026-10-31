@@ -66,15 +66,15 @@ if st.button("Перевести на русский", type="primary"):
             result = lex.get(key)
             if result:
                 gloss, note = result
-                rows.append({"Слово": token, "Русское значение": gloss, "Примечание": note})
+                rows.append({"Слово": token, "Русское значение": gloss, "Примечание": note, "Морфология": note})
                 glosses.append(gloss)
             else:
-                rows.append({"Слово": token, "Русское значение": "не установлено", "Примечание": "нет в словаре"})
+                rows.append({"Слово": token, "Русское значение": "не установлено", "Примечание": "нет в словаре", "Морфология": "не установлена"})
                 glosses.append("[" + token + "]")
                 missing.append(token)
         st.subheader("Русский подстрочник")
         st.write(" · ".join(glosses))
-        st.subheader("Разбор слов")
+        st.subheader("Разбор слов и морфология")
         st.dataframe(rows, hide_index=True, use_container_width=True)
         if missing:
             st.warning(f"Неизвестных слов: {len(missing)}. Полный перевод этого фрагмента пока невозможен.")
