@@ -1,4 +1,7 @@
 import re
+import json
+import urllib.request
+import html
 import streamlit as st
 
 st.set_page_config(page_title="Пешитта — бесплатный разбор", layout="wide")
@@ -26,6 +29,32 @@ tradition = st.selectbox("Источник и языковая традиция"
     "Западноарамейские тексты (источник требуется указать)",
 ])
 st.caption("Важно: Таргум Онкелоса не является дословной записью галилейской речи Иисуса I века.")
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_onkelos_chapter(chapter):
+    url = f"https://www.sefaria.org/api/texts/Onkelos_Genesis.{chapter}?context=0&commentary=0"
+    req = urllib.request.Request(url, headers={"User-Agent": "AramaicBibleResearch/1.0"})
+    with urllib.request.urlopen(req, timeout=25) as response:
+        data = json.load(response)
+    verses = data.get("he", [])
+    if not isinstance(verses, list) or not verses:
+        raise ValueError("Текст главы отсутствует в ответе библиотеки")
+    return [html.unescape(re.sub(r"<[^>]+>", "", str(v))) for v in verses]
+
+if tradition == "Таргум Онкелоса (еврейский литературный арамейский)":
+    chapter = st.selectbox("Книга Бытия — глава", range(1, 51))
+    st.caption("Источник: Sefaria, Targum Onkelos on Genesis. Текст загружается по главам из внешней библиотеки, не генерируется нейросетью.")
+    try:
+        verses = load_onkelos_chapter(chapter)
+        verse_number = st.selectbox("Стих", ["Вся глава"] + list(range(1, len(verses) + 1)))
+        chosen = verses if verse_number == "Вся глава" else [verses[verse_number - 1]]
+        st.text_area("Арамейский текст выбранного фрагмента", value="\\n".join(
+            f"{i if verse_number == 'Вся глава' else verse_number}. {v}" for i, v in enumerate(chosen, 1)
+        ), height=260)
+        st.markdown(f"[Открыть источник в Sefaria](https://www.sefaria.org/Onkelos_Genesis.{chapter})")
+    except Exception as exc:
+        st.warning("Не удалось загрузить главу из Sefaria. Проверьте подключение или откройте источник по ссылке.")
+        st.markdown(f"[Глава {chapter} в Sefaria](https://www.sefaria.org/Onkelos_Genesis.{chapter})")
+
 reference = st.text_input("Место и источник (например, Бытие 1:1, издание/рукопись)")
 source = st.text_area("Текст источника (сохраняется без изменения)", value="ܒܪܫܝܬ ܐܝܬܘܗܝ ܡܠܬܐ", height=140)
 language = st.selectbox("Язык", list(LANG))
