@@ -1,64 +1,54 @@
-import json
-import urllib.request
-import urllib.error
+import re
 import streamlit as st
 
-st.set_page_config(page_title="Пешитта — переводчик", layout="wide")
-st.title("ܦܫܝܛܬܐ · Переводчик арамейской Библии")
-st.caption("Экспериментальный перевод сирийского арамейского. Результаты требуют филологической проверки.")
-source = st.text_area("Арамейский оригинал", height=180, placeholder="Вставьте сирийский текст")
-language = st.selectbox("Язык перевода", ["Русский", "Белорусский", "Польский", "Английский"])
+st.set_page_config(page_title="Пешитта — бесплатный разбор", layout="wide")
+st.title("ܦܫܝܛܬܐ · Сирийская Пешитта")
+st.caption("Бесплатный экспериментальный словарный разбор без API. Это не полноценный автоматический перевод.")
+
+# Small manually curated starter lexicon. Expand only with checked attestations.
+LEXICON = {
+    "ܒܪܫܝܬ": ("в начале", "напачатку", "na początku", "in the beginning", "ܒ + ܪܫܝܬ: предлог «в» + «начало»"),
+    "ܐܝܬܘܗܝ": ("был / существовал", "быў / існаваў", "był / istniał", "was / existed", "экзистенциальная конструкция с местоименным элементом; контекст важен"),
+    "ܐܝܬܘܗܘ": ("существует (чтение проверить)", "існуе (праверыць чытанне)", "istnieje (sprawdź zapis)", "exists (verify reading)", "форма требует сверки с изданием Пешитты"),
+    "ܡܠܬܐ": ("слово", "слова", "słowo", "word", "существительное женского рода, эмфатическое состояние; также «речь»"),
+    "ܗܘܐ": ("был / стал", "быў / стаў", "był / stał się", "was / became", "глагол ܗܘܐ; значение зависит от контекста"),
+    "ܘ": ("и", "і", "i", "and", "союз, часто присоединяется к следующему слову"),
+    "ܐܠܗܐ": ("Бог", "Бог", "Bóg", "God", "существительное, эмфатическое состояние"),
+    "ܠܘܬ": ("у / с / к", "у / з / да", "u / z / do", "with / toward", "предлог; значение зависит от конструкции"),
+    "ܗܘ": ("он / тот", "ён / той", "on / ten", "he / that", "местоимение"),
+    "ܢܘܗܪܐ": ("свет", "святло", "światło", "light", "существительное"),
+    "ܚܝܐ": ("жизнь / живые", "жыццё / жывыя", "życie / żywi", "life / living", "неоднозначная форма; нужен контекст"),
+}
+LANG = {"Русский": 0, "Белорусский": 1, "Польский": 2, "Английский": 3}
+source = st.text_area("Сирийский оригинал", value="ܒܪܫܝܬ ܐܝܬܘܗܝ ܡܠܬܐ", height=140)
+language = st.selectbox("Язык", list(LANG))
 mode = st.selectbox("Режим", ["Буквальный", "Литературный", "Филологический анализ"])
-try:
-    key = st.secrets.get("OPENAI_API_KEY", "")
-except Exception:
-    key = ""
-if not key:
-    st.info("Для автоматического перевода настройте OPENAI_API_KEY в Streamlit → App settings → Secrets. Никогда не добавляйте ключ в публичный GitHub.")
-if st.button("Перевести", type="primary"):
+st.info("Бесплатная версия знает ограниченный набор слов. Неизвестные формы сохраняются без выдуманного перевода. Литературный режим пока показывает только черновой подстрочник.")
+if st.button("Подготовить перевод", type="primary"):
+    words = re.findall(r"[\u0700-\u074F\u0860-\u086F]+|[^\s]+", source)
     if not source.strip():
-        st.warning("Введите текст.")
-    elif not key:
-        st.error("Автоматический перевод пока недоступен: не настроен API-ключ.")
+        st.warning("Введите сирийский текст.")
+    elif not words:
+        st.warning("Не обнаружен текст.")
     else:
-        instructions = (
-            "Переводи предоставленный сирийский арамейский текст непосредственно на целевой язык, "
-            "не подменяя оригинал известными библейскими переводами. "
-            "Не выдумывай этимологии и источники. Указывай сомнительные чтения и неопределённость. "
-            f"Язык результата: {language}. Режим: {mode}. "
-            "Буквальный: сохраняй синтаксис и помечай добавленные слова. "
-            "Литературный: сохраняй смысл и читаемость. "
-            "Филологический анализ: объясняй лексику, морфологию и альтернативные значения."
-        )
-        payload = json.dumps({
-            "model": "gpt-4.1-mini",
-            "instructions": instructions,
-            "input": source.strip(),
-            "max_output_tokens": 1800
-        }).encode("utf-8")
-        request = urllib.request.Request(
-            "https://api.openai.com/v1/responses",
-            data=payload,
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-            method="POST"
-        )
-        with st.spinner("Переводим..."):
-            try:
-                with urllib.request.urlopen(request, timeout=90) as response:
-                    result = json.load(response)
-                translated = "\n".join(
-                    part.get("text", "")
-                    for item in result.get("output", [])
-                    for part in item.get("content", [])
-                    if part.get("type") == "output_text"
-                ).strip()
-                if translated:
-                    st.subheader("Результат")
-                    st.write(translated)
-                    st.caption("Машинный перевод; сверяйте с текстом Пешитты.")
-                else:
-                    st.error("Сервис не вернул перевод.")
-            except urllib.error.HTTPError as exc:
-                st.error(f"Ошибка API (HTTP {exc.code}). Проверьте ключ, баланс и доступ к модели.")
-            except Exception:
-                st.error("Ошибка соединения с сервисом перевода.")
+        rows, glosses, unknown = [], [], []
+        for word in words:
+            clean = re.sub(r"[\u0730-\u074A\u064B-\u065F]", "", word)
+            item = LEXICON.get(clean)
+            if item:
+                gloss = item[LANG[language]]
+                rows.append({"Оригинал": word, "Значение": gloss, "Примечание": item[4]})
+                glosses.append(gloss)
+            else:
+                rows.append({"Оригинал": word, "Значение": "—", "Примечание": "Нет в проверенном словаре"})
+                glosses.append(f"[{word}]")
+                unknown.append(word)
+        st.subheader("Подстрочник (не литературный перевод)")
+        st.write(" · ".join(glosses))
+        if mode == "Литературный":
+            st.warning("Связный литературный перевод пока недоступен без отдельного переводческого движка.")
+        st.subheader("Пословный разбор")
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+        if unknown:
+            st.warning("Не распознаны: " + ", ".join(unknown) + ". Не используйте подстрочник как готовый перевод.")
+        st.caption("Для научного использования сверяйте написание, огласовку, морфологию и контекст с критическим изданием Пешитты.")
