@@ -1,2 +1,10 @@
-# aramaic-bible-translator
-Direct Aramaic-to-Russian Bible translation with linguistic and morphological analysis
+# Aramaic Bible → Russian
+Прототип интерфейса прямого перевода сирийского арамейского библейского текста на русский.
+
+## Запуск
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Важно: это интерфейс MVP, не готовый переводчик. Для точного перевода нужны лицензированный корпус Пешитты, лексикон, морфологический анализ и модель перевода с экспертной проверкой. Греческий текст не используется как промежуточный источник.
